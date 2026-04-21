@@ -1,0 +1,7 @@
+requests
+beautifulsoup4
+feedparser
+yfinance
+pandas
+plotly
+scipy
