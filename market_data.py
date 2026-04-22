@@ -38,13 +38,17 @@ def _dates_in_any_window(all_dates: pd.Index, mention_dates: list[str], window: 
     """
     Filter a DatetimeIndex to only rows that fall within ±window calendar days
     of at least one mention date.
+
+    Uses string comparison (YYYY-MM-DD) to avoid pandas datetime64 resolution
+    mismatches across different yfinance / pandas version combinations.
     """
-    parsed_mentions = [datetime.fromisoformat(d) for d in mention_dates]
-    mask = pd.Series(False, index=all_dates)
-    for mention_dt in parsed_mentions:
-        lower = pd.Timestamp(mention_dt - timedelta(days=window))
-        upper = pd.Timestamp(mention_dt + timedelta(days=window))
-        mask |= (all_dates >= lower) & (all_dates <= upper)
+    date_strs = all_dates.strftime("%Y-%m-%d")
+    mask = pd.Series(False, index=range(len(all_dates)))
+    for raw in mention_dates:
+        mention_date = datetime.fromisoformat(raw).date()
+        lower = (mention_date - timedelta(days=window)).strftime("%Y-%m-%d")
+        upper = (mention_date + timedelta(days=window)).strftime("%Y-%m-%d")
+        mask |= (date_strs >= lower) & (date_strs <= upper)
     return all_dates[mask.values]
 
 

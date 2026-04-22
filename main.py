@@ -11,6 +11,7 @@ import scraper
 import market_data
 import correlation
 import reporting
+from database import get_cross_reference_tickers
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -21,7 +22,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--substacks",
         required=True,
-        help="Comma-separated list of Substack slugs to scrape (e.g. doomberg,marcoviews).",
+        help=(
+            "Comma-separated list of Substack slugs or custom-domain URLs to scrape. "
+            "e.g. doomberg,https://newsletter.semianalysis.com,tacticzhazel"
+        ),
     )
     parser.add_argument(
         "--lookback",
@@ -110,11 +114,34 @@ def main(argv: list[str] | None = None) -> None:
     else:
         print("No correlation data available.")
 
-    # ------------------------------------------------------------------
-    # Step 5: Generate per-ticker time-series charts
-    # ------------------------------------------------------------------
-    _header("Step 5 — Generating time-series charts")
     written_files: list[str] = []
+
+    # ------------------------------------------------------------------
+    # Step 5: Cross-reference — tickers mentioned by multiple substacks
+    # ------------------------------------------------------------------
+    _header("Step 5 — Cross-referencing tickers across Substacks")
+    xref_rows = get_cross_reference_tickers(conn, min_slugs=2)
+    print(f"Tickers mentioned by 2+ substacks: {len(xref_rows)}")
+
+    if xref_rows:
+        print(f"\n  {'Ticker':<10} {'Substacks':>9} {'Mentions':>9}  Publications")
+        print(f"  {'-'*10} {'-'*9} {'-'*9}  {'-'*30}")
+        for row in xref_rows[:20]:
+            print(
+                f"  {row['ticker']:<10} "
+                f"{row['slug_count']:>9} "
+                f"{row['total_mentions']:>9}  "
+                f"{row['slugs']}"
+            )
+
+    xref_path = reporting.export_cross_reference_csv(xref_rows, output_dir)
+    print(f"\nSaved: {xref_path}")
+    written_files.append(xref_path)
+
+    # ------------------------------------------------------------------
+    # Step 6: Generate per-ticker time-series charts
+    # ------------------------------------------------------------------
+    _header("Step 6 — Generating time-series charts")
 
     if not corr_df.empty:
         eligible = corr_df[corr_df["mention_count"] >= 3]["ticker"].tolist()
@@ -130,9 +157,9 @@ def main(argv: list[str] | None = None) -> None:
         print("No eligible tickers — skipping time-series charts.")
 
     # ------------------------------------------------------------------
-    # Step 6: Generate scatter chart
+    # Step 7: Generate scatter chart
     # ------------------------------------------------------------------
-    _header("Step 6 — Generating scatter chart")
+    _header("Step 7 — Generating scatter chart")
     scatter_path = reporting.generate_scatter_chart(corr_df, output_dir)
     if scatter_path:
         print(f"Saved: {scatter_path}")
@@ -141,17 +168,17 @@ def main(argv: list[str] | None = None) -> None:
         print("Scatter chart skipped (insufficient data after filtering).")
 
     # ------------------------------------------------------------------
-    # Step 7: Export CSV
+    # Step 8: Export CSV
     # ------------------------------------------------------------------
-    _header("Step 7 — Exporting CSV")
+    _header("Step 8 — Exporting CSV")
     csv_path = reporting.export_csv(corr_df, output_dir)
     print(f"Saved: {csv_path}")
     written_files.append(csv_path)
 
     # ------------------------------------------------------------------
-    # Step 8: Summary
+    # Step 9: Summary
     # ------------------------------------------------------------------
-    _header("Step 8 — Summary")
+    _header("Step 9 — Summary")
     if written_files:
         print(f"Files written ({len(written_files)} total):")
         for f in written_files:

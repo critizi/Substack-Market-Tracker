@@ -136,6 +136,20 @@ def generate_scatter_chart(df: pd.DataFrame, output_dir: str) -> str:
     return out_path
 
 
+def export_cross_reference_csv(xref_rows: list[dict], output_dir: str) -> str:
+    """
+    Save the cross-reference ticker table to {output_dir}/cross_reference.csv.
+    Returns the output file path.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, "cross_reference.csv")
+    df = pd.DataFrame(xref_rows) if xref_rows else pd.DataFrame(
+        columns=["ticker", "slug_count", "slugs", "total_mentions"]
+    )
+    df.to_csv(out_path, index=False)
+    return out_path
+
+
 def export_csv(df: pd.DataFrame, output_dir: str) -> str:
     """
     Save the full correlations DataFrame to {output_dir}/correlation_results.csv.

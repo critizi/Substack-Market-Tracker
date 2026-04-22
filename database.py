@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS posts (
     url            TEXT    UNIQUE NOT NULL,
     published_date TEXT,
     body_text      TEXT,
+    is_paywalled   INTEGER DEFAULT 0,
     scraped_at     TEXT    DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -49,6 +50,14 @@ CREATE TABLE IF NOT EXISTS volume_snapshots (
 # Initialization
 # ---------------------------------------------------------------------------
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add any columns introduced after the initial schema."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(posts)")}
+    if "is_paywalled" not in existing:
+        conn.execute("ALTER TABLE posts ADD COLUMN is_paywalled INTEGER DEFAULT 0")
+        conn.commit()
+
+
 def init_db(db_path: str = "./substack.db") -> sqlite3.Connection:
     """
     Open (or create) the SQLite database at *db_path*, apply the schema, and
@@ -65,6 +74,7 @@ def init_db(db_path: str = "./substack.db") -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
     conn.executescript(_DDL)
+    _migrate(conn)
     conn.commit()
 
     return conn
@@ -81,6 +91,7 @@ def insert_post(
     url: str,
     published_date: Optional[str],
     body_text: Optional[str],
+    is_paywalled: bool = False,
 ) -> int:
     """
     Insert a post row and return its *id*.
@@ -90,10 +101,10 @@ def insert_post(
     """
     conn.execute(
         """
-        INSERT OR IGNORE INTO posts (substack_slug, title, url, published_date, body_text)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO posts (substack_slug, title, url, published_date, body_text, is_paywalled)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (slug, title, url, published_date, body_text),
+        (slug, title, url, published_date, body_text, int(is_paywalled)),
     )
     conn.commit()
 
@@ -216,5 +227,48 @@ def get_volume_snapshots(conn: sqlite3.Connection, ticker: str) -> list[dict]:
         ORDER BY snapshot_date
         """,
         (ticker,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_cross_reference_tickers(
+    conn: sqlite3.Connection,
+    min_slugs: int = 2,
+    validated_only: bool = True,
+) -> list[dict]:
+    """
+    Return tickers mentioned by at least *min_slugs* different Substack publications.
+
+    Args:
+        min_slugs:      Minimum number of distinct publications required.
+        validated_only: When True (default), restrict to tickers that have at least
+                        one row in volume_snapshots — i.e. yfinance confirmed them as
+                        real, tradeable symbols.  This filters out tech-jargon acronyms
+                        that happen to look like tickers (CPO, AWS, OSAT, etc.).
+
+    Each dict contains:
+        ticker, slug_count, slugs (comma-separated), total_mentions
+    Results are ordered by slug_count DESC, then total_mentions DESC.
+    """
+    market_filter = (
+        "AND tm.ticker IN (SELECT DISTINCT ticker FROM volume_snapshots)"
+        if validated_only
+        else ""
+    )
+    rows = conn.execute(
+        f"""
+        SELECT
+            tm.ticker,
+            COUNT(DISTINCT p.substack_slug) AS slug_count,
+            GROUP_CONCAT(DISTINCT p.substack_slug) AS slugs,
+            COUNT(*)                         AS total_mentions
+        FROM ticker_mentions tm
+        JOIN posts p ON p.id = tm.post_id
+        {market_filter}
+        GROUP BY tm.ticker
+        HAVING COUNT(DISTINCT p.substack_slug) >= ?
+        ORDER BY slug_count DESC, total_mentions DESC
+        """,
+        (min_slugs,),
     ).fetchall()
     return [dict(row) for row in rows]
