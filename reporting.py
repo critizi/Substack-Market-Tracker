@@ -77,7 +77,7 @@ def generate_time_series_chart(conn, ticker: str, output_dir: str) -> str:
     # --- save ------------------------------------------------------------------
     os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, f"{ticker}_timeseries.html")
-    fig.write_html(out_path)
+    fig.write_html(out_path, include_plotlyjs="cdn")
     return out_path
 
 
@@ -132,7 +132,7 @@ def generate_scatter_chart(df: pd.DataFrame, output_dir: str) -> str:
 
     os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, "scatter_mention_vs_spike.html")
-    fig.write_html(out_path)
+    fig.write_html(out_path, include_plotlyjs="cdn")
     return out_path
 
 

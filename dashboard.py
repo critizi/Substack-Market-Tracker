@@ -358,9 +358,9 @@ th[data-tip]:hover::after{opacity:1}
           <th data-col="pearson_p" data-tip="Two-tailed p-value for the Pearson r. Below 0.05 = statistically significant (shown in green). Below 0.10 = marginal (yellow).">p-value</th>
           <th data-col="volume_spike_ratio" data-tip="Average trading volume in the days after a mention divided by the prior baseline volume. 2.0× means volume doubled. Higher = more market attention post-mention.">Vol Spike</th>
           <th data-col="avg_price_return_pct" data-tip="Average % price change in the window after a mention across all posts. Positive = stock tended to rise after being mentioned.">Avg Return</th>
-          <th data-col="mention_count">Mentions</th>
-          <th data-col="pub_count">Sources</th>
-          <th data-col="is_consensus">Consensus</th>
+          <th data-col="mention_count" data-tip="Total number of times this ticker was mentioned across all scraped posts in the lookback window.">Mentions</th>
+          <th data-col="pub_count" data-tip="Number of distinct Substack publications that mentioned this ticker. Higher = broader coverage across sources.">Sources</th>
+          <th data-col="is_consensus" data-tip="Marked ✓ if the ticker was mentioned by 2 or more different publications. Consensus picks get a +10 pt bonus to their Signal Score.">Consensus</th>
         </tr></thead>
         <tbody id="sig-tbody"></tbody>
       </table>

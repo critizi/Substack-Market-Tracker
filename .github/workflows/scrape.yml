@@ -1,21 +1,13 @@
-name: Scrape & Publish
+name: Deploy to GitHub Pages
 
 on:
-  schedule:
-    - cron: '0 8 * * 0'   # Every Sunday at 8 AM UTC
-  workflow_dispatch:
-    inputs:
-      substacks:
-        description: 'Comma-separated Substack slugs or URLs to scrape'
-        required: false
-        default: 'newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel,cloudedjudgement,damnang2,taekim'
-      lookback:
-        description: 'Days to look back for posts'
-        required: false
-        default: '90'
+  push:
+    branches: [master]
+    paths:
+      - 'output/**'
 
 jobs:
-  scrape:
+  deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -24,33 +16,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run scraper
-        run: |
-          python main.py \
-            --substacks "${{ github.event.inputs.substacks || 'newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel,cloudedjudgement,damnang2,taekim' }}" \
-            --lookback "${{ github.event.inputs.lookback || '90' }}" \
-            --output ./output
-
-      - name: Set dashboard as index
-        run: cp output/dashboard.html output/index.html
-
-      - name: Deploy to GitHub Pages
+      - name: Deploy output/ to gh-pages
         run: |
           cd output
           git init -b gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Deploy scraper output [run ${{ github.run_number }}]"
+          git commit -m "Deploy output [run ${{ github.run_number }}]"
           git push --force \
             "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
             HEAD:gh-pages

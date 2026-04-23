@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alpha Intelligence — Substack Signal Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" crossorigin="anonymous"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'SF Mono','Cascadia Code','Fira Mono',monospace;background:#070d1a;color:#c9d4e8;min-height:100vh;font-size:13px}
+a{color:#38bdf8;text-decoration:none}
+a:hover{color:#7dd3fc;text-decoration:underline}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:#0b1627;border-bottom:1px solid #1a2d45;position:sticky;top:0;z-index:100}
+.logo{font-size:15px;font-weight:700;letter-spacing:.18em;color:#38bdf8;text-transform:uppercase}
+.logo span{color:#334155;font-weight:400}
+.header-meta{font-size:11px;color:#475569;text-align:right;line-height:1.7}
+.header-meta strong{color:#94a3b8}
+
+/* KPI ROW */
+.kpi-row{display:flex;gap:10px;padding:18px 28px;overflow-x:auto}
+.kpi-card{background:#0d1b2e;border:1px solid #1a2d45;border-radius:8px;padding:14px 18px;min-width:150px;flex:1}
+.kpi-label{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:#334155;margin-bottom:6px}
+.kpi-value{font-size:26px;font-weight:800;letter-spacing:-.02em;color:#e2e8f0}
+.kpi-sub{font-size:10px;color:#475569;margin-top:3px}
+.kpi-card.c-blue .kpi-value{color:#38bdf8}
+.kpi-card.c-green .kpi-value{color:#34d399}
+.kpi-card.c-yellow .kpi-value{color:#fbbf24}
+.kpi-card.c-purple .kpi-value{color:#a78bfa}
+
+/* TABS */
+.tab-bar{display:flex;padding:0 28px;background:#0b1627;border-bottom:1px solid #1a2d45}
+.tab-btn{background:none;border:none;border-bottom:2px solid transparent;color:#475569;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:12px 16px;cursor:pointer;transition:color .15s,border-color .15s}
+.tab-btn:hover{color:#94a3b8}
+.tab-btn.active{color:#38bdf8;border-bottom-color:#38bdf8}
+
+/* CONTENT */
+.content{padding:20px 28px}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* TOOLBAR */
+.toolbar{display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+.search-box{background:#0d1b2e;border:1px solid #1e3a5f;border-radius:6px;color:#c9d4e8;font-family:inherit;font-size:12px;padding:7px 11px;width:200px;outline:none;transition:border-color .15s}
+.search-box:focus{border-color:#38bdf8}
+.search-box::placeholder{color:#1e3a5f}
+.filter-select{background:#0d1b2e;border:1px solid #1e3a5f;border-radius:6px;color:#94a3b8;font-family:inherit;font-size:11px;padding:7px 10px;outline:none;cursor:pointer}
+.filter-select:focus{border-color:#38bdf8}
+.count-label{font-size:10px;color:#334155;margin-left:auto}
+
+/* DATA TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #1a2d45}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#0a1625;color:#475569;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:10px 13px;text-align:left;cursor:pointer;white-space:nowrap;user-select:none;border-bottom:1px solid #1a2d45;transition:color .15s}
+thead th:hover{color:#94a3b8}
+thead th.sort-asc::after{content:" ▲";color:#38bdf8}
+thead th.sort-desc::after{content:" ▼";color:#38bdf8}
+tbody tr{border-bottom:1px solid #0f1e32;transition:background .1s}
+tbody tr:hover{background:#0d1b2e}
+tbody td{padding:9px 13px;vertical-align:middle}
+.ticker-lnk{font-weight:800;font-size:13px;color:#7dd3fc;letter-spacing:.05em}
+.ticker-lnk:hover{color:#38bdf8}
+
+/* COLUMN HEADER TOOLTIPS */
+th[data-tip]{position:relative;cursor:help}
+th[data-tip]::after{
+  content:attr(data-tip);
+  position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:#0d1b2e;border:1px solid #1a2d45;color:#94a3b8;
+  font-size:11px;font-weight:400;line-height:1.5;white-space:pre-wrap;
+  width:220px;padding:8px 10px;border-radius:6px;
+  pointer-events:none;opacity:0;transition:opacity .15s;z-index:200;
+  box-shadow:0 4px 16px rgba(0,0,0,.5)
+}
+th[data-tip]:hover::after{opacity:1}
+
+/* SIGNAL SCORE CELL */
+.score-cell{display:flex;align-items:center;gap:8px;min-width:100px}
+.bar-bg{width:56px;height:5px;background:#1a2d45;border-radius:3px;overflow:hidden;flex-shrink:0}
+.bar-fill{height:100%;border-radius:3px}
+.bar-hi{background:linear-gradient(90deg,#34d399,#059669)}
+.bar-md{background:linear-gradient(90deg,#fbbf24,#d97706)}
+.bar-lo{background:linear-gradient(90deg,#f87171,#dc2626)}
+.score-num{font-weight:800;font-size:12px;min-width:32px}
+.c-hi{color:#34d399}.c-md{color:#fbbf24}.c-lo{color:#f87171}
+
+/* BADGES */
+.badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:2px 6px;border-radius:3px}
+.b-sig{background:#064e3b;color:#34d399;border:1px solid #065f46}
+.b-weak{background:#451a03;color:#fbbf24;border:1px solid #78350f}
+.b-ns{background:#1c1917;color:#57534e;border:1px solid #292524}
+.b-cons{background:#172554;color:#60a5fa;border:1px solid #1e3a8a}
+.b-na{background:#111;color:#333;border:1px solid #222}
+
+/* CONSENSUS CARDS */
+.cons-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.cons-card{background:#0d1b2e;border:1px solid #1a2d45;border-radius:8px;padding:16px;transition:border-color .15s}
+.cons-card:hover{border-color:#38bdf8}
+.cons-ticker{font-size:22px;font-weight:800;color:#7dd3fc;letter-spacing:.05em;margin-bottom:4px}
+.pub-pills{margin-bottom:10px}
+.pub-pill{display:inline-block;background:#0b1a2c;border:1px solid #1e3a5f;border-radius:10px;font-size:9px;color:#94a3b8;padding:2px 8px;margin:2px 2px 2px 0}
+.cons-stats{display:flex;gap:16px;margin-top:8px;font-size:11px}
+.stat{display:flex;flex-direction:column}
+.stat-label{color:#334155;font-size:9px;text-transform:uppercase;letter-spacing:.1em}
+.stat-val{color:#c9d4e8;font-weight:700}
+
+/* MENTIONS FEED */
+.feed{display:flex;flex-direction:column;gap:8px}
+.mention-card{background:#0d1b2e;border:1px solid #1a2d45;border-radius:6px;padding:12px 14px;display:grid;grid-template-columns:58px 1fr auto;gap:12px;align-items:start}
+.m-ticker{font-size:14px;font-weight:800;color:#7dd3fc}
+.m-title{font-size:12px;color:#94a3b8;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-ctx{font-size:11px;color:#475569;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-meta{text-align:right;min-width:100px}
+.m-date{font-size:11px;color:#475569}
+.m-slug{font-size:10px;color:#38bdf8}
+
+/* CHART */
+.chart-wrap{background:#0d1b2e;border:1px solid #1a2d45;border-radius:8px;padding:16px;min-height:500px}
+
+/* EMPTY / MISC */
+.empty{color:#1e3a5f;text-align:center;padding:60px 20px;font-size:13px}
+.section-title{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:#334155;margin-bottom:14px}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#070d1a}
+::-webkit-scrollbar-thumb{background:#1a2d45;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#1e3a5f}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">&#9670;&nbsp;Alpha<span>/Intelligence</span></div>
+  <div class="header-meta">
+    <strong id="hdr-date">—</strong><br>
+    <span id="hdr-stats">—</span>
+  </div>
+</header>
+
+<div class="kpi-row">
+  <div class="kpi-card c-blue">
+    <div class="kpi-label">Tickers Tracked</div>
+    <div class="kpi-value" id="kpi-tickers">—</div>
+    <div class="kpi-sub" id="kpi-posts-sub">— posts scraped</div>
+  </div>
+  <div class="kpi-card c-blue">
+    <div class="kpi-label">Top Signal</div>
+    <div class="kpi-value" id="kpi-top">—</div>
+    <div class="kpi-sub" id="kpi-top-score">Score —</div>
+  </div>
+  <div class="kpi-card c-green">
+    <div class="kpi-label">Consensus Picks</div>
+    <div class="kpi-value" id="kpi-cons">—</div>
+    <div class="kpi-sub">2+ publications</div>
+  </div>
+  <div class="kpi-card c-yellow">
+    <div class="kpi-label">Avg Vol Spike</div>
+    <div class="kpi-value" id="kpi-spike">—</div>
+    <div class="kpi-sub">vs. 30-day baseline</div>
+  </div>
+  <div class="kpi-card c-purple">
+    <div class="kpi-label">Total Mentions</div>
+    <div class="kpi-value" id="kpi-mentions">—</div>
+    <div class="kpi-sub">ticker occurrences</div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="signals">Signal Intelligence</button>
+  <button class="tab-btn" data-tab="consensus">Consensus Picks</button>
+  <button class="tab-btn" data-tab="overview">Market Overview</button>
+  <button class="tab-btn" data-tab="mentions">Recent Mentions</button>
+</div>
+
+<div class="content">
+
+  <div class="tab-panel active" id="panel-signals">
+    <div class="toolbar">
+      <input class="search-box" id="tbl-search" placeholder="Search ticker…" oninput="applyTable()">
+      <select class="filter-select" id="tbl-filter" onchange="applyTable()">
+        <option value="all">All Signals</option>
+        <option value="sig">Significant (p &lt; 0.05)</option>
+        <option value="consensus">Consensus Only</option>
+        <option value="spike">Vol Spike &gt; 1×</option>
+        <option value="strong">Score ≥ 60</option>
+      </select>
+      <span class="count-label" id="tbl-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table id="sig-table">
+        <thead><tr>
+          <th data-col="rank">#</th>
+          <th data-col="ticker">Ticker</th>
+          <th data-col="signal_score" class="sort-desc" data-tip="Composite score 0–100.&#10;&#10;Pearson r  → up to 40 pts&#10;p &lt; 0.05   → 20 pts (p &lt; 0.10 → 10 pts)&#10;Vol spike  → up to 20 pts&#10;Mentions   → up to 10 pts (log-scaled)&#10;Cross-ref  → 10 pts if 2+ sources">Signal Score</th>
+          <th data-col="pearson_r" data-tip="Pearson correlation between mention frequency and price returns over the lookback window. Range −1 to +1. Positive = price tends to rise after mentions.">Pearson r</th>
+          <th data-col="pearson_p" data-tip="Two-tailed p-value for the Pearson r. Below 0.05 = statistically significant (shown in green). Below 0.10 = marginal (yellow).">p-value</th>
+          <th data-col="volume_spike_ratio" data-tip="Average trading volume in the days after a mention divided by the prior baseline volume. 2.0× means volume doubled. Higher = more market attention post-mention.">Vol Spike</th>
+          <th data-col="avg_price_return_pct" data-tip="Average % price change in the window after a mention across all posts. Positive = stock tended to rise after being mentioned.">Avg Return</th>
+          <th data-col="mention_count" data-tip="Total number of times this ticker was mentioned across all scraped posts in the lookback window.">Mentions</th>
+          <th data-col="pub_count" data-tip="Number of distinct Substack publications that mentioned this ticker. Higher = broader coverage across sources.">Sources</th>
+          <th data-col="is_consensus" data-tip="Marked ✓ if the ticker was mentioned by 2 or more different publications. Consensus picks get a +10 pt bonus to their Signal Score.">Consensus</th>
+        </tr></thead>
+        <tbody id="sig-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="panel-consensus">
+    <div class="section-title">Tickers mentioned across multiple publications</div>
+    <div class="cons-grid" id="cons-grid"></div>
+  </div>
+
+  <div class="tab-panel" id="panel-overview">
+    <div class="chart-wrap" id="scatter-div"></div>
+  </div>
+
+  <div class="tab-panel" id="panel-mentions">
+    <div class="toolbar">
+      <input class="search-box" id="feed-search" placeholder="Filter by ticker or source…" oninput="applyFeed()">
+      <span class="count-label" id="feed-count"></span>
+    </div>
+    <div class="feed" id="feed-list"></div>
+  </div>
+
+</div>
+
+<script>
+const RAW = {"records": [{"ticker": "NVDA", "mention_count": 619, "volume_spike_ratio": 1.034504, "avg_price_return_pct": 0.565166, "pearson_r": 0.620253, "pearson_p": 0.017959, "snapshot_count": 64, "signal_score": 65.5, "is_consensus": true, "pub_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "SAP", "mention_count": 10, "volume_spike_ratio": 0.599042, "avg_price_return_pct": 1.22555, "pearson_r": 0.944958, "pearson_p": 0.055042, "snapshot_count": 29, "signal_score": 62.8, "is_consensus": true, "pub_count": 3, "slugs": "cloudedjudgement.substack.com,www.techinvestments.io,taekim.substack.com"}, {"ticker": "LITE", "mention_count": 30, "volume_spike_ratio": 1.114771, "avg_price_return_pct": 12.938663, "pearson_r": 0.847187, "pearson_p": 0.152813, "snapshot_count": 27, "signal_score": 53.6, "is_consensus": true, "pub_count": 3, "slugs": "www.citriniresearch.com,tacticzhazel.substack.com,damnang2.substack.com"}, {"ticker": "MSFT", "mention_count": 91, "volume_spike_ratio": 1.080045, "avg_price_return_pct": 0.938003, "pearson_r": 0.496913, "pearson_p": 0.14398, "snapshot_count": 51, "signal_score": 41.3, "is_consensus": true, "pub_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "MRVL", "mention_count": 60, "volume_spike_ratio": 0.885875, "avg_price_return_pct": 3.607624, "pearson_r": 0.488868, "pearson_p": 0.26558, "snapshot_count": 44, "signal_score": 38.4, "is_consensus": true, "pub_count": 5, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "META", "mention_count": 47, "volume_spike_ratio": 1.099888, "avg_price_return_pct": 0.655728, "pearson_r": 0.381593, "pearson_p": 0.276563, "snapshot_count": 51, "signal_score": 35.6, "is_consensus": true, "pub_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "MU", "mention_count": 52, "volume_spike_ratio": 1.065857, "avg_price_return_pct": -1.242883, "pearson_r": 0.310734, "pearson_p": 0.382186, "snapshot_count": 62, "signal_score": 32.3, "is_consensus": true, "pub_count": 6, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "CSCO", "mention_count": 23, "volume_spike_ratio": 0.935842, "avg_price_return_pct": -1.650335, "pearson_r": 0.354969, "pearson_p": 0.645031, "snapshot_count": 29, "signal_score": 31.0, "is_consensus": true, "pub_count": 3, "slugs": "newsletter.semianalysis.com,tacticzhazel.substack.com,damnang2.substack.com"}, {"ticker": "TSM", "mention_count": 168, "volume_spike_ratio": 1.033787, "avg_price_return_pct": -0.547287, "pearson_r": 0.24313, "pearson_p": 0.528453, "snapshot_count": 57, "signal_score": 30.4, "is_consensus": true, "pub_count": 5, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "ARM", "mention_count": 81, "volume_spike_ratio": 0.770827, "avg_price_return_pct": 2.244769, "pearson_r": 0.264887, "pearson_p": 0.565923, "snapshot_count": 41, "signal_score": 30.1, "is_consensus": true, "pub_count": 6, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "IBM", "mention_count": 7, "volume_spike_ratio": 0.912731, "avg_price_return_pct": -1.008947, "pearson_r": 0.379674, "pearson_p": 0.620326, "snapshot_count": 29, "signal_score": 29.4, "is_consensus": true, "pub_count": 4, "slugs": "newsletter.semianalysis.com,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "ASML", "mention_count": 12, "volume_spike_ratio": 1.10199, "avg_price_return_pct": -0.510931, "pearson_r": -0.736122, "pearson_p": 0.059243, "snapshot_count": 43, "signal_score": 27.4, "is_consensus": true, "pub_count": 3, "slugs": "www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com"}, {"ticker": "INTC", "mention_count": 246, "volume_spike_ratio": 0.970876, "avg_price_return_pct": 1.792683, "pearson_r": 0.146842, "pearson_p": 0.706179, "snapshot_count": 50, "signal_score": 25.9, "is_consensus": true, "pub_count": 4, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,damnang2.substack.com,taekim.substack.com"}, {"ticker": "AMZN", "mention_count": 70, "volume_spike_ratio": 1.245959, "avg_price_return_pct": 0.314059, "pearson_r": -0.013682, "pearson_p": 0.964615, "snapshot_count": 63, "signal_score": 24.1, "is_consensus": true, "pub_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "JPM", "mention_count": 6, "volume_spike_ratio": 0.87828, "avg_price_return_pct": -0.06286, "pearson_r": -0.939703, "pearson_p": 0.017612, "snapshot_count": 38, "signal_score": 23.9, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "GOOGL", "mention_count": 120, "volume_spike_ratio": 0.99347, "avg_price_return_pct": 0.167954, "pearson_r": 0.08682, "pearson_p": 0.788474, "snapshot_count": 63, "signal_score": 23.5, "is_consensus": true, "pub_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "DBI", "mention_count": 3, "volume_spike_ratio": 2.058302, "avg_price_return_pct": 2.961919, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 22.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "SASS", "mention_count": 3, "volume_spike_ratio": 3.0, "avg_price_return_pct": 0.913039, "pearson_r": null, "pearson_p": null, "snapshot_count": 6, "signal_score": 22.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "SOLS", "mention_count": 3, "volume_spike_ratio": 3.160401, "avg_price_return_pct": 10.905586, "pearson_r": null, "pearson_p": null, "snapshot_count": 6, "signal_score": 22.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "MS", "mention_count": 7, "volume_spike_ratio": 1.339618, "avg_price_return_pct": -1.054274, "pearson_r": -0.587588, "pearson_p": 0.297472, "snapshot_count": 32, "signal_score": 21.0, "is_consensus": true, "pub_count": 2, "slugs": "damnang2.substack.com,taekim.substack.com"}, {"ticker": "ORCL", "mention_count": 23, "volume_spike_ratio": 1.154158, "avg_price_return_pct": 1.100762, "pearson_r": 0.02014, "pearson_p": 0.962248, "snapshot_count": 42, "signal_score": 20.7, "is_consensus": true, "pub_count": 4, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com"}, {"ticker": "AMD", "mention_count": 217, "volume_spike_ratio": 0.869586, "avg_price_return_pct": 1.700324, "pearson_r": -0.173551, "pearson_p": 0.609818, "snapshot_count": 57, "signal_score": 20.0, "is_consensus": true, "pub_count": 5, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "SSNLF", "mention_count": 192, "volume_spike_ratio": null, "avg_price_return_pct": 0.0, "pearson_r": null, "pearson_p": null, "snapshot_count": 57, "signal_score": 20.0, "is_consensus": true, "pub_count": 6, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "QCOM", "mention_count": 15, "volume_spike_ratio": 0.691365, "avg_price_return_pct": -0.113945, "pearson_r": 0.097153, "pearson_p": 0.854729, "snapshot_count": 44, "signal_score": 19.8, "is_consensus": true, "pub_count": 4, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,damnang2.substack.com,taekim.substack.com"}, {"ticker": "COHR", "mention_count": 47, "volume_spike_ratio": 0.785724, "avg_price_return_pct": 3.089453, "pearson_r": -0.561023, "pearson_p": 0.246756, "snapshot_count": 36, "signal_score": 18.4, "is_consensus": true, "pub_count": 3, "slugs": "newsletter.semianalysis.com,tacticzhazel.substack.com,damnang2.substack.com"}, {"ticker": "AVGO", "mention_count": 43, "volume_spike_ratio": 0.97654, "avg_price_return_pct": 0.845233, "pearson_r": -0.243763, "pearson_p": 0.527346, "snapshot_count": 54, "signal_score": 18.2, "is_consensus": true, "pub_count": 6, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "CRM", "mention_count": 3, "volume_spike_ratio": 1.222247, "avg_price_return_pct": -2.072274, "pearson_r": null, "pearson_p": null, "snapshot_count": 16, "signal_score": 16.8, "is_consensus": true, "pub_count": 2, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com"}, {"ticker": "AAPL", "mention_count": 19, "volume_spike_ratio": 0.985628, "avg_price_return_pct": -0.169206, "pearson_r": -0.417769, "pearson_p": 0.303053, "snapshot_count": 48, "signal_score": 16.4, "is_consensus": true, "pub_count": 6, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "TSLA", "mention_count": 12, "volume_spike_ratio": 1.043237, "avg_price_return_pct": -3.418771, "pearson_r": -0.117851, "pearson_p": 0.824041, "snapshot_count": 42, "signal_score": 16.3, "is_consensus": true, "pub_count": 5, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "DELL", "mention_count": 11, "volume_spike_ratio": 0.812962, "avg_price_return_pct": 1.413369, "pearson_r": -0.567734, "pearson_p": 0.239895, "snapshot_count": 35, "signal_score": 15.2, "is_consensus": true, "pub_count": 3, "slugs": "newsletter.semianalysis.com,damnang2.substack.com,taekim.substack.com"}, {"ticker": "SNOW", "mention_count": 7, "volume_spike_ratio": 0.703462, "avg_price_return_pct": 2.643397, "pearson_r": -0.344365, "pearson_p": 0.655635, "snapshot_count": 30, "signal_score": 14.2, "is_consensus": true, "pub_count": 2, "slugs": "www.techinvestments.io,cloudedjudgement.substack.com"}, {"ticker": "NOW", "mention_count": 7, "volume_spike_ratio": 0.943578, "avg_price_return_pct": -0.68769, "pearson_r": -0.916183, "pearson_p": 0.262507, "snapshot_count": 22, "signal_score": 14.2, "is_consensus": true, "pub_count": 3, "slugs": "www.citriniresearch.com,www.techinvestments.io,cloudedjudgement.substack.com"}, {"ticker": "SPOT", "mention_count": 3, "volume_spike_ratio": 1.090644, "avg_price_return_pct": -2.192305, "pearson_r": null, "pearson_p": null, "snapshot_count": 6, "signal_score": 14.2, "is_consensus": true, "pub_count": 2, "slugs": "www.techinvestments.io,tacticzhazel.substack.com"}, {"ticker": "AMKR", "mention_count": 6, "volume_spike_ratio": 0.69213, "avg_price_return_pct": -0.57954, "pearson_r": null, "pearson_p": null, "snapshot_count": 15, "signal_score": 13.9, "is_consensus": true, "pub_count": 2, "slugs": "www.citriniresearch.com,newsletter.semianalysis.com"}, {"ticker": "NET", "mention_count": 5, "volume_spike_ratio": 0.502947, "avg_price_return_pct": 2.251092, "pearson_r": null, "pearson_p": null, "snapshot_count": 16, "signal_score": 13.5, "is_consensus": true, "pub_count": 2, "slugs": "newsletter.semianalysis.com,cloudedjudgement.substack.com"}, {"ticker": "UBER", "mention_count": 5, "volume_spike_ratio": 0.777176, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 18, "signal_score": 13.5, "is_consensus": true, "pub_count": 2, "slugs": "www.citriniresearch.com,www.techinvestments.io"}, {"ticker": "ELS", "mention_count": 4, "volume_spike_ratio": 0.869681, "avg_price_return_pct": -0.22072, "pearson_r": null, "pearson_p": null, "snapshot_count": 13, "signal_score": 13.0, "is_consensus": true, "pub_count": 2, "slugs": "newsletter.semianalysis.com,damnang2.substack.com"}, {"ticker": "MDB", "mention_count": 4, "volume_spike_ratio": 0.776195, "avg_price_return_pct": 4.428572, "pearson_r": null, "pearson_p": null, "snapshot_count": 17, "signal_score": 13.0, "is_consensus": true, "pub_count": 2, "slugs": "www.techinvestments.io,cloudedjudgement.substack.com"}, {"ticker": "PD", "mention_count": 4, "volume_spike_ratio": 0.80453, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 16, "signal_score": 13.0, "is_consensus": true, "pub_count": 2, "slugs": "newsletter.semianalysis.com,damnang2.substack.com"}, {"ticker": "CIEN", "mention_count": 3, "volume_spike_ratio": 0.669284, "avg_price_return_pct": 0.822407, "pearson_r": null, "pearson_p": null, "snapshot_count": 15, "signal_score": 12.4, "is_consensus": true, "pub_count": 3, "slugs": "www.citriniresearch.com,tacticzhazel.substack.com,damnang2.substack.com"}, {"ticker": "ZM", "mention_count": 3, "volume_spike_ratio": 0.806422, "avg_price_return_pct": 4.183051, "pearson_r": null, "pearson_p": null, "snapshot_count": 16, "signal_score": 12.4, "is_consensus": true, "pub_count": 3, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,tacticzhazel.substack.com"}, {"ticker": "AAOI", "mention_count": 9, "volume_spike_ratio": 1.317384, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 9, "signal_score": 11.1, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "TTD", "mention_count": 3, "volume_spike_ratio": 1.392604, "avg_price_return_pct": -5.901489, "pearson_r": null, "pearson_p": null, "snapshot_count": 6, "signal_score": 10.2, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "FICO", "mention_count": 9, "volume_spike_ratio": 1.258844, "avg_price_return_pct": -4.326923, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 9.9, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "SID", "mention_count": 3, "volume_spike_ratio": 1.335078, "avg_price_return_pct": 1.48148, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 9.1, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "LEO", "mention_count": 9, "volume_spike_ratio": 1.186453, "avg_price_return_pct": -0.629921, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 8.5, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "RMBS", "mention_count": 28, "volume_spike_ratio": 0.716863, "avg_price_return_pct": -0.064687, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 7.2, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "WOLF", "mention_count": 16, "volume_spike_ratio": 0.842441, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 6.0, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "BESS", "mention_count": 9, "volume_spike_ratio": 0.439276, "avg_price_return_pct": -1.724144, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 4.8, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "CSL", "mention_count": 3, "volume_spike_ratio": 1.114796, "avg_price_return_pct": -1.091708, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 4.7, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "TDC", "mention_count": 6, "volume_spike_ratio": 1.0206, "avg_price_return_pct": 1.71625, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 4.3, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "COP", "mention_count": 6, "volume_spike_ratio": 0.682541, "avg_price_return_pct": 0.634679, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 3.9, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "DCI", "mention_count": 6, "volume_spike_ratio": 0.651534, "avg_price_return_pct": 0.768505, "pearson_r": null, "pearson_p": null, "snapshot_count": 12, "signal_score": 3.9, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "DASH", "mention_count": 5, "volume_spike_ratio": 0.867967, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 9, "signal_score": 3.5, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "DDOG", "mention_count": 5, "volume_spike_ratio": 0.726149, "avg_price_return_pct": 4.556418, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 3.5, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "AMAT", "mention_count": 4, "volume_spike_ratio": 0.983838, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 3.0, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "AKAM", "mention_count": 3, "volume_spike_ratio": 0.864157, "avg_price_return_pct": 2.848514, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "AMX", "mention_count": 3, "volume_spike_ratio": 0.789192, "avg_price_return_pct": 3.023254, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "BCG", "mention_count": 3, "volume_spike_ratio": 0.890052, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 9, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "CCD", "mention_count": 3, "volume_spike_ratio": 0.869579, "avg_price_return_pct": 0.886528, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "CRDO", "mention_count": 3, "volume_spike_ratio": 0.856207, "avg_price_return_pct": 2.315554, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "CTS", "mention_count": 3, "volume_spike_ratio": 0.58313, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 9, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "ESS", "mention_count": 3, "volume_spike_ratio": 0.512985, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "IDE", "mention_count": 3, "volume_spike_ratio": 0.700806, "avg_price_return_pct": 0.324149, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "KGS", "mention_count": 3, "volume_spike_ratio": 0.935561, "avg_price_return_pct": -0.29131, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "MUX", "mention_count": 3, "volume_spike_ratio": 0.806307, "avg_price_return_pct": 1.022495, "pearson_r": null, "pearson_p": null, "snapshot_count": 7, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "NFLX", "mention_count": 3, "volume_spike_ratio": 0.997892, "avg_price_return_pct": -0.927034, "pearson_r": null, "pearson_p": null, "snapshot_count": 6, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "PBR", "mention_count": 3, "volume_spike_ratio": 0.640833, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "PLG", "mention_count": 3, "volume_spike_ratio": 0.876567, "avg_price_return_pct": 1.470587, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "RFI", "mention_count": 3, "volume_spike_ratio": 0.772876, "avg_price_return_pct": null, "pearson_r": null, "pearson_p": null, "snapshot_count": 9, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}, {"ticker": "TER", "mention_count": 3, "volume_spike_ratio": 0.818089, "avg_price_return_pct": 1.121393, "pearson_r": null, "pearson_p": null, "snapshot_count": 8, "signal_score": 2.4, "is_consensus": false, "pub_count": 1, "slugs": ""}], "xref": [{"ticker": "NVDA", "slug_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 619}, {"ticker": "GOOGL", "slug_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 120}, {"ticker": "MSFT", "slug_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 91}, {"ticker": "AMZN", "slug_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 70}, {"ticker": "META", "slug_count": 7, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 47}, {"ticker": "SSNLF", "slug_count": 6, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 192}, {"ticker": "ARM", "slug_count": 6, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 81}, {"ticker": "MU", "slug_count": 6, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 52}, {"ticker": "AVGO", "slug_count": 6, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 43}, {"ticker": "AAPL", "slug_count": 6, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,cloudedjudgement.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 19}, {"ticker": "AMD", "slug_count": 5, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 217}, {"ticker": "TSM", "slug_count": 5, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 168}, {"ticker": "MRVL", "slug_count": 5, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 60}, {"ticker": "TSLA", "slug_count": 5, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 12}, {"ticker": "INTC", "slug_count": 4, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,damnang2.substack.com,taekim.substack.com", "total_mentions": 246}, {"ticker": "ORCL", "slug_count": 4, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com", "total_mentions": 23}, {"ticker": "QCOM", "slug_count": 4, "slugs": "newsletter.semianalysis.com,www.techinvestments.io,damnang2.substack.com,taekim.substack.com", "total_mentions": 15}, {"ticker": "IBM", "slug_count": 4, "slugs": "newsletter.semianalysis.com,tacticzhazel.substack.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 7}, {"ticker": "COHR", "slug_count": 3, "slugs": "newsletter.semianalysis.com,tacticzhazel.substack.com,damnang2.substack.com", "total_mentions": 47}, {"ticker": "LITE", "slug_count": 3, "slugs": "www.citriniresearch.com,tacticzhazel.substack.com,damnang2.substack.com", "total_mentions": 30}, {"ticker": "CSCO", "slug_count": 3, "slugs": "newsletter.semianalysis.com,tacticzhazel.substack.com,damnang2.substack.com", "total_mentions": 23}, {"ticker": "ASML", "slug_count": 3, "slugs": "www.techinvestments.io,tacticzhazel.substack.com,damnang2.substack.com", "total_mentions": 12}, {"ticker": "DELL", "slug_count": 3, "slugs": "newsletter.semianalysis.com,damnang2.substack.com,taekim.substack.com", "total_mentions": 11}, {"ticker": "SAP", "slug_count": 3, "slugs": "cloudedjudgement.substack.com,www.techinvestments.io,taekim.substack.com", "total_mentions": 10}, {"ticker": "NOW", "slug_count": 3, "slugs": "www.citriniresearch.com,www.techinvestments.io,cloudedjudgement.substack.com", "total_mentions": 7}, {"ticker": "CIEN", "slug_count": 3, "slugs": "www.citriniresearch.com,tacticzhazel.substack.com,damnang2.substack.com", "total_mentions": 3}, {"ticker": "ZM", "slug_count": 3, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com,tacticzhazel.substack.com", "total_mentions": 3}, {"ticker": "MS", "slug_count": 2, "slugs": "damnang2.substack.com,taekim.substack.com", "total_mentions": 7}, {"ticker": "SNOW", "slug_count": 2, "slugs": "www.techinvestments.io,cloudedjudgement.substack.com", "total_mentions": 7}, {"ticker": "AMKR", "slug_count": 2, "slugs": "www.citriniresearch.com,newsletter.semianalysis.com", "total_mentions": 6}, {"ticker": "NET", "slug_count": 2, "slugs": "newsletter.semianalysis.com,cloudedjudgement.substack.com", "total_mentions": 5}, {"ticker": "UBER", "slug_count": 2, "slugs": "www.citriniresearch.com,www.techinvestments.io", "total_mentions": 5}, {"ticker": "ELS", "slug_count": 2, "slugs": "newsletter.semianalysis.com,damnang2.substack.com", "total_mentions": 4}, {"ticker": "MDB", "slug_count": 2, "slugs": "www.techinvestments.io,cloudedjudgement.substack.com", "total_mentions": 4}, {"ticker": "PD", "slug_count": 2, "slugs": "newsletter.semianalysis.com,damnang2.substack.com", "total_mentions": 4}, {"ticker": "CRM", "slug_count": 2, "slugs": "newsletter.semianalysis.com,www.citriniresearch.com", "total_mentions": 3}, {"ticker": "SPOT", "slug_count": 2, "slugs": "www.techinvestments.io,tacticzhazel.substack.com", "total_mentions": 3}, {"ticker": "ANET", "slug_count": 2, "slugs": "newsletter.semianalysis.com,tacticzhazel.substack.com", "total_mentions": 2}, {"ticker": "ASAN", "slug_count": 2, "slugs": "www.citriniresearch.com,cloudedjudgement.substack.com", "total_mentions": 2}, {"ticker": "PLTR", "slug_count": 2, "slugs": "www.techinvestments.io,cloudedjudgement.substack.com", "total_mentions": 2}, {"ticker": "UPST", "slug_count": 2, "slugs": "www.citriniresearch.com,tacticzhazel.substack.com", "total_mentions": 2}, {"ticker": "WDC", "slug_count": 2, "slugs": "cloudedjudgement.substack.com,damnang2.substack.com", "total_mentions": 2}], "recent_mentions": [{"ticker": "AVGO", "mention_context": "ollara NICs. This meant downloading tarballs from Broadcom’s driver search website, scp’ing the files over t", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "AMD", "mention_context": "eviously tested on AMD clusters, and nearly every AMD base image they publish to rocm repos such as vll", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "AMD", "mention_context": "ingle container image we had previously tested on AMD clusters, and nearly every AMD base image they pu", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "AVGO", "mention_context": "t site, using AMD MI300X GPUs, and crucially some Broadcom Thor-II NICs. This was the first cluster we’d got", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "AMD", "mention_context": "urm and kubernetes clusters from that site, using AMD MI300X GPUs, and crucially some Broadcom Thor-II", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "NVDA", "mention_context": "ely built into PDD and WideEP frameworks such as  NVIDIA Dynamo , including at the KV Cache offloading lev", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "NVDA", "mention_context": "ion process reveals that even providers following NVIDIA’s reference architecture can experience performan", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "NVDA", "mention_context": "differences between neoclouds. Specifically, the  NVIDIA DGXC benchmarking repo  and related NCP/DGXC cert", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "ORCL", "mention_context": "tier = Nebius + Fluidstack + Crusoe Hyperscaler = Oracle + Azure + AWS + GCP Silver-tier = Together + Lamb", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "AMZN", "mention_context": "e same fault tolerance problem described earlier. Amazon developed this technology internally for training", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "META", "mention_context": "you must install on the cluster. Source: Source: Meta, https://arxiv.org/abs/2410.21680v2 Not every lar", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "META", "mention_context": "in more detail below: TorchFT  (open-source from meta-pytorch) AWS SageMaker HyperPod Checkpointless  t", "match_type": "company_name", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "MTBF", "mention_context": "e x-axis of the chart), the time between failures (MTBF) gets smaller and smaller. Source: AWS As a result", "match_type": "parenthetical", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "MTBF", "mention_context": "e x-axis of the chart), the time between failures (MTBF) gets smaller and smaller. Source: AWS As a result", "match_type": "parenthetical", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "MTBF", "mention_context": "e x-axis of the chart), the time between failures (MTBF) gets smaller and smaller. Source: AWS As a result", "match_type": "parenthetical", "substack_slug": "newsletter.semianalysis.com", "title": "How Much Do GPU Clusters Really Cost?", "url": "https://newsletter.semianalysis.com/p/how-much-do-gpu-clusters-really-cost", "published_date": "2026-04-20T14:21:59+00:00"}, {"ticker": "CIEN", "mention_context": "tion.   QCi (L4 + L5, own PIC plus TFLN foundry). Ciena (L6-A + L6-C, engine plus transport). What we’ve", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "SMTC", "mention_context": "ies that also own their own laser chip. MACOM and Semtech. A real differentiator in today’s EML shortage. M", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "MTSI", "mention_context": "IC companies that also own their own laser chip. MACOM and Semtech. A real differentiator in today’s EML", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "MRVL", "mention_context": "PIC and L6 modules through M&A. Cisco, Credo, and Marvell fit this. All relatively recent arrivals in optic", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "CSCO", "mention_context": "expanding into L4 PIC and L6 modules through M&A. Cisco, Credo, and Marvell fit this. All relatively rece", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "LITE", "mention_context": "evices and reaching down to L6 modules. Coherent, Lumentum, AAOI, and Sumitomo are the archetypes. Most are", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "COHR", "mention_context": "ls or L2 devices and reaching down to L6 modules. Coherent, Lumentum, AAOI, and Sumitomo are the archetypes.", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "SSNLF", "mention_context": "so it is hard to treat as a pure photonics play.  Samsung Foundry is also developing SiPh processes, a vari", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "TSM", "mention_context": "upplier. GlobalFoundries and UMC are pushing in.  TSMC also offers a SiPh COUPE platform and SoIC advanc", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "AMD", "mention_context": "ght DustPhotonics.  Astera Labs bought aiXscale.  AMD bought Enosemi.  All in 2025-2026. The pure-play", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "MRVL", "mention_context": "nablement. The core story here is the  M&A war .  Marvell bought Celestial AI.  Credo bought DustPhotonics.", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "LITE", "mention_context": "ain behind them. Some people look at Coherent and Lumentum and think they understand optics. Others hear CPO", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "COHR", "mention_context": "the value chain behind them. Some people look at Coherent and Lumentum and think they understand optics. Ot", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "DCI", "mention_context": "nsport Systems Long-haul data-center interconnect (DCI) and telecom metro network equipment. Different ec", "match_type": "parenthetical", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "DCI", "mention_context": "nsport Systems Long-haul data-center interconnect (DCI) and telecom metro network equipment. Different ec", "match_type": "parenthetical", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "ELS", "mention_context": "another wave of demand for external light source (ELS) CW lasers.  Japanese majors like Sumitomo Electri", "match_type": "parenthetical", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "DCI", "mention_context": "nsport Systems Long-haul data-center interconnect (DCI) and telecom metro network equipment. Different ec", "match_type": "parenthetical", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "ELS", "mention_context": "another wave of demand for external light source (ELS) CW lasers.  Japanese majors like Sumitomo Electri", "match_type": "parenthetical", "substack_slug": "damnang2.substack.com", "title": "Damnang's Optical Investment Map v1.0", "url": "https://damnang2.substack.com/p/damnangs-optical-investment-map-v10", "published_date": "2026-04-19T23:44:00+00:00"}, {"ticker": "META", "mention_context": "top of this you have the “tokenmaxing” companies. Meta was in the news on this recently - the idea is “a", "match_type": "company_name", "substack_slug": "cloudedjudgement.substack.com", "title": "Clouded Judgement 4.17.26 - Rising Tide, Hidden Risk", "url": "https://cloudedjudgement.substack.com/p/clouded-judgement-41726-rising-tide", "published_date": "2026-04-17T13:13:39+00:00"}, {"ticker": "NVDA", "mention_context": "keeps asking the same question.  “So can AMD beat NVIDIA or not?”  As I said at the top, we can’t answer t", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "e market keeps asking the same question.  “So can AMD beat NVIDIA or not?”  As I said at the top, we ca", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "her. This split sits at the center of the current AMD story. Faced with all this news and rumor, the ma", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "Matt Britzman of Hargreaves Lansdown read it as “AMD handing over 10% of its equity twice tells you ho", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "META", "mention_context": "The thinking goes that after watching OpenAI and Meta each lock in compute with 6GW deals, Anthropic mi", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "inium, NVIDIA GPUs, and Microsoft infrastructure. AMD isn’t on that list. But Anthropic’s run-rate reve", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "MSFT", "mention_context": "ns on Google TPUs, AWS Trainium, NVIDIA GPUs, and Microsoft infrastructure. AMD isn’t on that list. But Anthr", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "NVDA", "mention_context": "now Anthropic runs on Google TPUs, AWS Trainium, NVIDIA GPUs, and Microsoft infrastructure. AMD isn’t on", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "GOOGL", "mention_context": "” No official source. Right now Anthropic runs on Google TPUs, AWS Trainium, NVIDIA GPUs, and Microsoft in", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "k have been buzzing with “Anthropic could sign an AMD deal too.” No official source. Right now Anthropi", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "enAI 6GW or a separate deal. If they’re separate, AMD’s hyperscaler deal count grows by one. If they’re", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "ORCL", "mention_context": "e Oracle 50K MI450 deal fall under the OpenAI 6GW Oracle has a separate large-scale infrastructure contrac", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "ORCL", "mention_context": "top of that, it matters a lot. Rumor 4: Does the Oracle 50K MI450 deal fall under the OpenAI 6GW Oracle h", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "rastructure in place to migrate CUDA workloads to AMD on top of that, it matters a lot. Rumor 4: Does t", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "that Microsoft runs its own Maia chips alongside AMD. If they actually have infrastructure in place to", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "MSFT", "mention_context": "cutting inference costs. It’s already public that Microsoft runs its own Maia chips alongside AMD. If they ac", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "MSFT", "mention_context": "to-ROCm conversion toolkit There are reports that Microsoft is developing an in-house toolkit to convert CUDA", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "MSFT", "mention_context": "collides directly with the MI455X ramp. Rumor 3: Microsoft CUDA-to-ROCm conversion toolkit There are reports", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "ected. There’s no official confirmation. If true, AMD’s entry window narrows. If Rubin arrives in early", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "NVDA", "mention_context": "level integration all happening at once. Rumor 2: NVIDIA Vera Rubin pulled forward Since mid-March, there’", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "TSM", "mention_context": "6.” It is a technically demanding launch with 2nm TSMC, HBM4 transition, and system-level integration al", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "ources reported that MI455X shipments could slip. AMD officially pushed back with “Helios systems on ta", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "cks. That disconnect is the central debate in the AMD story right now. Subscribe now 3. Rumors and Open", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "AMD", "mention_context": "rator market is still NVIDIA in the 80% range and AMD hovering around 10%. The gap closed on specs and", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "NVDA", "mention_context": "hasn't moved.  The AI accelerator market is still NVIDIA in the 80% range and AMD hovering around 10%. The", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}, {"ticker": "NVDA", "mention_context": "tel, Meta, and Microsoft participating. NVLink is NVIDIA proprietary. Spec-level bandwidth is converging t", "match_type": "company_name", "substack_slug": "damnang2.substack.com", "title": "Can AMD Beat NVIDIA?", "url": "https://damnang2.substack.com/p/can-amd-beat-nvidia", "published_date": "2026-04-17T09:15:16+00:00"}], "kpis": {"total_tickers": 71, "top_signal": "NVDA", "top_score": 65.5, "consensus_count": 42, "avg_spike": 0.9844, "post_count": 103, "mention_count": 2833, "run_date": "2026-04-23 14:56 UTC"}};
+const {records, xref, recent_mentions, kpis} = RAW;
+
+// ── KPIs ──────────────────────────────────────────────────────────────────
+document.getElementById('hdr-date').textContent = kpis.run_date;
+document.getElementById('hdr-stats').textContent =
+  kpis.post_count.toLocaleString() + ' posts · ' + kpis.mention_count.toLocaleString() + ' mentions indexed';
+document.getElementById('kpi-tickers').textContent = kpis.total_tickers;
+document.getElementById('kpi-posts-sub').textContent = kpis.post_count.toLocaleString() + ' posts scraped';
+document.getElementById('kpi-top').textContent = kpis.top_signal;
+document.getElementById('kpi-top-score').textContent = 'Score ' + kpis.top_score;
+document.getElementById('kpi-cons').textContent = kpis.consensus_count;
+document.getElementById('kpi-spike').textContent = Number(kpis.avg_spike).toFixed(3) + '×';
+document.getElementById('kpi-mentions').textContent = kpis.mention_count.toLocaleString();
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+let scatterDrawn = false;
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const panel = document.getElementById('panel-' + btn.dataset.tab);
+    if (panel) panel.classList.add('active');
+    if (btn.dataset.tab === 'overview' && !scatterDrawn) { drawScatter(); scatterDrawn = true; }
+  });
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function fmt(v, d) { return (v == null) ? '—' : Number(v).toFixed(d); }
+
+function scoreClasses(s) {
+  if (s >= 60) return ['bar-hi', 'c-hi'];
+  if (s >= 35) return ['bar-md', 'c-md'];
+  return ['bar-lo', 'c-lo'];
+}
+
+function pBadge(p) {
+  if (p == null) return '<span class="badge b-na">N/A</span>';
+  if (p < 0.05)  return '<span class="badge b-sig">SIG</span>';
+  if (p < 0.10)  return '<span class="badge b-weak">WEAK</span>';
+  return '<span class="badge b-ns">NS</span>';
+}
+
+function numColor(v, pos, neg) {
+  if (v == null) return '#475569';
+  return v > 0 ? pos : v < 0 ? neg : '#94a3b8';
+}
+
+function rColor(v) {
+  if (v == null) return '#475569';
+  if (v >= 0.7) return '#34d399';
+  if (v >= 0.4) return '#fbbf24';
+  return '#f87171';
+}
+
+function slugLabel(s) {
+  return (s || '').replace(/^www\./, '').replace(/\.substack\.com$/, '').replace(/\.com$/, '');
+}
+
+// ── Signal Table ──────────────────────────────────────────────────────────
+let sortCol = 'signal_score', sortDir = -1;
+
+function renderTable(rows) {
+  const tbody = document.getElementById('sig-tbody');
+  document.getElementById('tbl-count').textContent = rows.length + ' of ' + records.length + ' tickers';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">No results match your filters.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map((r, i) => {
+    const sc = r.signal_score;
+    const [barCls, numCls] = scoreClasses(sc);
+    const spikeVal = r.volume_spike_ratio != null ? fmt(r.volume_spike_ratio, 3) + '×' : '—';
+    const spikeColor = r.volume_spike_ratio == null ? '#475569'
+      : r.volume_spike_ratio > 1.2 ? '#34d399'
+      : r.volume_spike_ratio > 0.9 ? '#fbbf24' : '#f87171';
+    const retSign = r.avg_price_return_pct != null && r.avg_price_return_pct >= 0 ? '+' : '';
+    const retVal = r.avg_price_return_pct != null ? retSign + fmt(r.avg_price_return_pct, 2) + '%' : '—';
+    return `<tr>
+      <td style="color:#334155">${i + 1}</td>
+      <td><a class="ticker-lnk" href="${r.ticker}_timeseries.html">${r.ticker}</a></td>
+      <td>
+        <div class="score-cell">
+          <div class="bar-bg"><div class="bar-fill ${barCls}" style="width:${Math.min(100, sc)}%"></div></div>
+          <span class="score-num ${numCls}">${sc}</span>
+        </div>
+      </td>
+      <td style="color:${rColor(r.pearson_r)};font-weight:700">${fmt(r.pearson_r, 4)}</td>
+      <td>${pBadge(r.pearson_p)}</td>
+      <td style="color:${spikeColor};font-weight:700">${spikeVal}</td>
+      <td style="color:${numColor(r.avg_price_return_pct,'#34d399','#f87171')};font-weight:700">${retVal}</td>
+      <td style="color:#94a3b8">${r.mention_count}</td>
+      <td style="color:#475569">${r.pub_count}</td>
+      <td>${r.is_consensus ? '<span class="badge b-cons">&#10003; CONSENSUS</span>' : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function applyTable() {
+  const q = document.getElementById('tbl-search').value.toUpperCase().trim();
+  const f = document.getElementById('tbl-filter').value;
+  let rows = records.filter(r => {
+    if (q && !r.ticker.includes(q)) return false;
+    if (f === 'sig'       && (r.pearson_p == null || r.pearson_p >= 0.05)) return false;
+    if (f === 'consensus' && !r.is_consensus) return false;
+    if (f === 'spike'     && (r.volume_spike_ratio == null || r.volume_spike_ratio <= 1)) return false;
+    if (f === 'strong'    && r.signal_score < 60) return false;
+    return true;
+  });
+  rows = [...rows].sort((a, b) => {
+    const av = a[sortCol], bv = b[sortCol];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return sortDir * (typeof av === 'string' ? av.localeCompare(bv) : av - bv);
+  });
+  renderTable(rows);
+}
+
+document.querySelectorAll('#sig-table thead th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (!col) return;
+    if (sortCol === col) { sortDir *= -1; }
+    else { sortCol = col; sortDir = col === 'ticker' ? 1 : -1; }
+    document.querySelectorAll('#sig-table thead th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+    th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+    applyTable();
+  });
+});
+
+// ── Consensus Cards ───────────────────────────────────────────────────────
+function renderConsensus() {
+  const grid = document.getElementById('cons-grid');
+  const recMap = Object.fromEntries(records.map(r => [r.ticker, r]));
+  if (!xref.length) { grid.innerHTML = '<p class="empty">No consensus picks in this dataset.</p>'; return; }
+  grid.innerHTML = xref.map(x => {
+    const rec = recMap[x.ticker] || {};
+    const sc = rec.signal_score != null ? rec.signal_score : null;
+    const scColor = sc == null ? '#475569' : sc >= 60 ? '#34d399' : sc >= 35 ? '#fbbf24' : '#f87171';
+    const pills = (x.slugs || '').split(',')
+      .map(s => `<span class="pub-pill">${slugLabel(s.trim())}</span>`).join('');
+    return `<div class="cons-card">
+      <div class="cons-ticker"><a href="${x.ticker}_timeseries.html" style="color:inherit">${x.ticker}</a></div>
+      <div class="pub-pills">${pills}</div>
+      <div class="cons-stats">
+        <div class="stat"><span class="stat-label">Signal Score</span><span class="stat-val" style="color:${scColor}">${sc ?? '—'}</span></div>
+        <div class="stat"><span class="stat-label">Publications</span><span class="stat-val">${x.slug_count}</span></div>
+        <div class="stat"><span class="stat-label">Mentions</span><span class="stat-val">${x.total_mentions}</span></div>
+        <div class="stat"><span class="stat-label">Pearson r</span><span class="stat-val">${rec.pearson_r != null ? Number(rec.pearson_r).toFixed(3) : '—'}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Scatter Chart ─────────────────────────────────────────────────────────
+function drawScatter() {
+  const el = document.getElementById('scatter-div');
+  const valid = records.filter(r => r.mention_count >= 3 && r.volume_spike_ratio != null);
+  if (!valid.length) { el.innerHTML = '<p class="empty">Insufficient data.</p>'; return; }
+  Plotly.newPlot(el, [{
+    x: valid.map(r => r.mention_count),
+    y: valid.map(r => r.volume_spike_ratio),
+    text: valid.map(r => r.ticker),
+    mode: 'markers+text',
+    textposition: 'top center',
+    marker: {
+      size: valid.map(r => Math.max(8, Math.min(22, r.mention_count / 15))),
+      color: valid.map(r => r.pearson_r != null ? r.pearson_r : 0),
+      colorscale: 'RdYlGn',
+      showscale: true,
+      colorbar: {title: 'Pearson r', tickfont: {color: '#94a3b8'}, titlefont: {color: '#94a3b8'}},
+      line: {width: 1, color: '#1a2d45'}
+    },
+    hovertemplate: '<b>%{text}</b><br>Mentions: %{x}<br>Vol Spike: %{y:.4f}<extra></extra>',
+    textfont: {color: '#475569', size: 10}
+  }], {
+    paper_bgcolor: '#0d1b2e',
+    plot_bgcolor: '#0a1525',
+    font: {color: '#94a3b8', family: 'SF Mono,monospace', size: 11},
+    title: {text: 'Mention Count vs. Volume Spike Ratio', font: {color: '#c9d4e8', size: 13}},
+    xaxis: {title: 'Mention Count', gridcolor: '#1a2d45', zerolinecolor: '#1a2d45', color: '#475569'},
+    yaxis: {title: 'Volume Spike Ratio', gridcolor: '#1a2d45', zerolinecolor: '#1a2d45', color: '#475569'},
+    hovermode: 'closest',
+    margin: {t: 48, r: 24, b: 52, l: 64}
+  }, {responsive: true, displayModeBar: false});
+}
+
+// ── Recent Mentions Feed ──────────────────────────────────────────────────
+function renderFeed(rows) {
+  const list = document.getElementById('feed-list');
+  document.getElementById('feed-count').textContent = rows.length + ' mentions';
+  if (!rows.length) { list.innerHTML = '<p class="empty">No mentions found.</p>'; return; }
+  list.innerHTML = rows.map(m => {
+    const date = (m.published_date || '').substring(0, 10);
+    const slug = slugLabel(m.substack_slug || '');
+    const ctx = m.mention_context ? '“…' + m.mention_context.substring(0, 110) + '…”' : '';
+    const titleHtml = m.url
+      ? `<a href="${m.url}" target="_blank" rel="noopener">${m.title || 'Untitled'}</a>`
+      : (m.title || 'Untitled');
+    return `<div class="mention-card">
+      <div class="m-ticker">${m.ticker}</div>
+      <div>
+        <div class="m-title">${titleHtml}</div>
+        <div class="m-ctx">${ctx}</div>
+      </div>
+      <div class="m-meta">
+        <div class="m-date">${date}</div>
+        <div class="m-slug">${slug}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function applyFeed() {
+  const q = document.getElementById('feed-search').value.toUpperCase().trim();
+  if (!q) { renderFeed(recent_mentions); return; }
+  renderFeed(recent_mentions.filter(m =>
+    (m.ticker || '').toUpperCase().includes(q) ||
+    (m.substack_slug || '').toUpperCase().includes(q)
+  ));
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+applyTable();
+renderConsensus();
+renderFeed(recent_mentions);
+</script>
+</body>
+</html>

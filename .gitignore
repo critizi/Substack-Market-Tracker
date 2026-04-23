@@ -3,4 +3,4 @@ __pycache__/
 *.pyc
 *.pyo
 .env
-output/
+# output/ is committed — generated locally and deployed via GitHub Pages
