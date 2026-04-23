@@ -11,6 +11,7 @@ import scraper
 import market_data
 import correlation
 import reporting
+import dashboard
 from database import get_cross_reference_tickers
 
 
@@ -176,9 +177,17 @@ def main(argv: list[str] | None = None) -> None:
     written_files.append(csv_path)
 
     # ------------------------------------------------------------------
-    # Step 9: Summary
+    # Step 9: Generate dashboard
     # ------------------------------------------------------------------
-    _header("Step 9 — Summary")
+    _header("Step 9 — Generating dashboard")
+    dash_path = dashboard.generate_dashboard(conn, corr_df, xref_rows, output_dir)
+    print(f"Saved: {dash_path}")
+    written_files.append(dash_path)
+
+    # ------------------------------------------------------------------
+    # Step 10: Summary
+    # ------------------------------------------------------------------
+    _header("Step 10 — Summary")
     if written_files:
         print(f"Files written ({len(written_files)} total):")
         for f in written_files:
