@@ -8,7 +8,7 @@ on:
       substacks:
         description: 'Comma-separated Substack slugs or URLs to scrape'
         required: false
-        default: 'doomberg'
+        default: 'newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel,cloudedjudgement,damnang2,taekim'
       lookback:
         description: 'Days to look back for posts'
         required: false
@@ -36,7 +36,7 @@ jobs:
       - name: Run scraper
         run: |
           python main.py \
-            --substacks "${{ github.event.inputs.substacks || 'doomberg' }}" \
+            --substacks "${{ github.event.inputs.substacks || 'newsletter.semianalysis.com,www.citriniresearch.com,www.techinvestments.io,tacticzhazel,cloudedjudgement,damnang2,taekim' }}" \
             --lookback "${{ github.event.inputs.lookback || '90' }}" \
             --output ./output
 
