@@ -44,24 +44,45 @@ def _safe_float(v) -> float | None:
         return None
 
 
-def _get_recent_mentions(conn, limit: int = 60) -> list[dict]:
-    rows = conn.execute(
-        """
-        SELECT
-            tm.ticker,
-            tm.mention_context,
-            tm.match_type,
-            p.substack_slug,
-            p.title,
-            p.url,
-            p.published_date
-        FROM ticker_mentions tm
-        JOIN posts p ON p.id = tm.post_id
-        ORDER BY p.published_date DESC, tm.id DESC
-        LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
+def _get_recent_mentions(conn, limit: int = 60, slugs: list[str] | None = None) -> list[dict]:
+    if slugs:
+        placeholders = ",".join("?" * len(slugs))
+        rows = conn.execute(
+            f"""
+            SELECT
+                tm.ticker,
+                tm.mention_context,
+                tm.match_type,
+                p.substack_slug,
+                p.title,
+                p.url,
+                p.published_date
+            FROM ticker_mentions tm
+            JOIN posts p ON p.id = tm.post_id
+            WHERE p.substack_slug IN ({placeholders})
+            ORDER BY p.published_date DESC, tm.id DESC
+            LIMIT ?
+            """,
+            (*slugs, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT
+                tm.ticker,
+                tm.mention_context,
+                tm.match_type,
+                p.substack_slug,
+                p.title,
+                p.url,
+                p.published_date
+            FROM ticker_mentions tm
+            JOIN posts p ON p.id = tm.post_id
+            ORDER BY p.published_date DESC, tm.id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
     return [dict(row) for row in rows]
 
 
@@ -70,6 +91,7 @@ def generate_dashboard(
     corr_df: pd.DataFrame,
     xref_rows: list[dict],
     output_dir: str,
+    slugs: list[str] | None = None,
 ) -> str:
     """
     Generate a self-contained dashboard.html in output_dir.
@@ -96,7 +118,7 @@ def generate_dashboard(
 
     records.sort(key=lambda x: x["signal_score"], reverse=True)
 
-    recent_mentions = _get_recent_mentions(conn, limit=60)
+    recent_mentions = _get_recent_mentions(conn, limit=60, slugs=slugs)
 
     top_signal = records[0]["ticker"] if records else "—"
     top_score = records[0]["signal_score"] if records else 0
@@ -199,6 +221,19 @@ tbody tr:hover{background:#0d1b2e}
 tbody td{padding:9px 13px;vertical-align:middle}
 .ticker-lnk{font-weight:800;font-size:13px;color:#7dd3fc;letter-spacing:.05em}
 .ticker-lnk:hover{color:#38bdf8}
+
+/* COLUMN HEADER TOOLTIPS */
+th[data-tip]{position:relative;cursor:help}
+th[data-tip]::after{
+  content:attr(data-tip);
+  position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:#0d1b2e;border:1px solid #1a2d45;color:#94a3b8;
+  font-size:11px;font-weight:400;line-height:1.5;white-space:pre-wrap;
+  width:220px;padding:8px 10px;border-radius:6px;
+  pointer-events:none;opacity:0;transition:opacity .15s;z-index:200;
+  box-shadow:0 4px 16px rgba(0,0,0,.5)
+}
+th[data-tip]:hover::after{opacity:1}
 
 /* SIGNAL SCORE CELL */
 .score-cell{display:flex;align-items:center;gap:8px;min-width:100px}
@@ -318,11 +353,11 @@ tbody td{padding:9px 13px;vertical-align:middle}
         <thead><tr>
           <th data-col="rank">#</th>
           <th data-col="ticker">Ticker</th>
-          <th data-col="signal_score" class="sort-desc">Signal Score</th>
-          <th data-col="pearson_r">Pearson r</th>
-          <th data-col="pearson_p">p-value</th>
-          <th data-col="volume_spike_ratio">Vol Spike</th>
-          <th data-col="avg_price_return_pct">Avg Return</th>
+          <th data-col="signal_score" class="sort-desc" data-tip="Composite score 0–100.&#10;&#10;Pearson r  → up to 40 pts&#10;p &lt; 0.05   → 20 pts (p &lt; 0.10 → 10 pts)&#10;Vol spike  → up to 20 pts&#10;Mentions   → up to 10 pts (log-scaled)&#10;Cross-ref  → 10 pts if 2+ sources">Signal Score</th>
+          <th data-col="pearson_r" data-tip="Pearson correlation between mention frequency and price returns over the lookback window. Range −1 to +1. Positive = price tends to rise after mentions.">Pearson r</th>
+          <th data-col="pearson_p" data-tip="Two-tailed p-value for the Pearson r. Below 0.05 = statistically significant (shown in green). Below 0.10 = marginal (yellow).">p-value</th>
+          <th data-col="volume_spike_ratio" data-tip="Average trading volume in the days after a mention divided by the prior baseline volume. 2.0× means volume doubled. Higher = more market attention post-mention.">Vol Spike</th>
+          <th data-col="avg_price_return_pct" data-tip="Average % price change in the window after a mention across all posts. Positive = stock tended to rise after being mentioned.">Avg Return</th>
           <th data-col="mention_count">Mentions</th>
           <th data-col="pub_count">Sources</th>
           <th data-col="is_consensus">Consensus</th>

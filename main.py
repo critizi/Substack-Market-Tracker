@@ -180,7 +180,8 @@ def main(argv: list[str] | None = None) -> None:
     # Step 9: Generate dashboard
     # ------------------------------------------------------------------
     _header("Step 9 — Generating dashboard")
-    dash_path = dashboard.generate_dashboard(conn, corr_df, xref_rows, output_dir)
+    normalized_slugs = [scraper._slug_label(s) for s in slugs]
+    dash_path = dashboard.generate_dashboard(conn, corr_df, xref_rows, output_dir, slugs=normalized_slugs)
     print(f"Saved: {dash_path}")
     written_files.append(dash_path)
 
