@@ -1,0 +1,92 @@
+name: Scrape & Publish
+
+on:
+  schedule:
+    - cron: '0 8 * * 0'   # Every Sunday at 8 AM UTC
+  workflow_dispatch:
+    inputs:
+      substacks:
+        description: 'Comma-separated Substack slugs or URLs to scrape'
+        required: false
+        default: 'doomberg'
+      lookback:
+        description: 'Days to look back for posts'
+        required: false
+        default: '90'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        run: |
+          python main.py \
+            --substacks "${{ github.event.inputs.substacks || 'doomberg' }}" \
+            --lookback "${{ github.event.inputs.lookback || '90' }}" \
+            --output ./output
+
+      - name: Generate index page
+        run: |
+          python - <<'EOF'
+          import os, glob
+          from datetime import datetime, timezone
+
+          charts = sorted(f for f in glob.glob("output/*.html") if not f.endswith("index.html"))
+
+          def row(path):
+              name = os.path.basename(path)
+              label = name.replace("_timeseries.html", "").replace(".html", "")
+              return f'<li><a href="{name}">{label}</a></li>'
+
+          items = "\n    ".join(row(c) for c in charts)
+          now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+          html = f"""<!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Substack Scraper</title>
+            <style>
+              body {{ font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; }}
+              h1 {{ font-size: 1.6rem; }}
+              ul {{ line-height: 2; }}
+              footer {{ margin-top: 40px; color: #888; font-size: 0.85rem; }}
+            </style>
+          </head>
+          <body>
+            <h1>Substack Scraper — Output</h1>
+            <p>Ticker mentions extracted from Substack newsletters, correlated with market data.</p>
+            <ul>
+              {items}
+            </ul>
+            <footer>Last updated: {now}</footer>
+          </body>
+          </html>"""
+
+          with open("output/index.html", "w") as f:
+              f.write(html)
+          print("index.html written")
+          EOF
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./output
+          commit_message: 'chore: update scraper output [${{ github.run_number }}]'
