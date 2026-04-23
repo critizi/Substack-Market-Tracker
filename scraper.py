@@ -295,13 +295,17 @@ def _feed_url(slug_or_url: str) -> str:
     """
     Convert a slug or a custom-domain URL into a feed URL.
 
-    - "doomberg"                       → https://doomberg.substack.com/feed
+    - "doomberg"                        → https://doomberg.substack.com/feed
+    - "newsletter.semianalysis.com"     → https://newsletter.semianalysis.com/feed
     - "https://newsletter.semianalysis.com" → https://newsletter.semianalysis.com/feed
     - "https://newsletter.semianalysis.com/feed" → unchanged
     """
     s = slug_or_url.strip().rstrip("/")
     if s.startswith("http://") or s.startswith("https://"):
         return s if s.endswith("/feed") else s + "/feed"
+    # Bare domain (contains a dot) — treat as custom domain, not a substack slug
+    if "." in s:
+        return f"https://{s}/feed"
     return f"https://{s}.substack.com/feed"
 
 
@@ -328,7 +332,8 @@ def fetch_feed(slug_or_url: str) -> list[dict]:
     Raises requests.RequestException on network failure.
     """
     url = _feed_url(slug_or_url)
-    response = requests.get(url, timeout=15)
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; RSS-reader/1.0)"}
+    response = requests.get(url, timeout=15, headers=headers)
     response.raise_for_status()
 
     feed = feedparser.parse(response.content)
