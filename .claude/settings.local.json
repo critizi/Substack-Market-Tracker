@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pipeline.build)",
+      "Read(//c/c/Users/Jakob Estrada/datacenter-map/**)",
+      "Read(//c/c/Users/Jakob Estrada/datacenter-map/dist/**)",
+      "Bash(python -c \"import requests, bs4, feedparser, pandas, anthropic, pydantic; print\\('all deps importable'\\)\")",
+      "Bash(rm dist/index.html dist/data.json)",
+      "Bash(python -c ' *)",
+      "Bash(start dist/index.html)",
+      "Bash(cmd.exe /c start \"\" \"dist\\\\\\\\index.html\")",
+      "Bash(xargs grep *)"
+    ]
+  }
+}
